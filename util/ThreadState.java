@@ -11,4 +11,11 @@ public class ThreadState {
 	
 	/* utility structures */
 	/* garbage_collection states */
+	
+	
+	public ThreadState() {
+		id = 0;
+		next = null;
+		count = 0;
+	}
 }

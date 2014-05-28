@@ -1,15 +1,12 @@
 package util;
 
 import java.lang.reflect.Field;
-import java.util.List;
 import java.util.Random;
 import java.lang.Thread;
 
 import sun.misc.Unsafe;
 import util.ThreadState;
 import util.ThreadStateManager;
-import util.CASTest.Node;
-import util.MyConcurrentSkipListMap.Index;
 
 public class SkiplistRotating {
 
@@ -273,7 +270,7 @@ public class SkiplistRotating {
 
         assert(null != set && null != set.head);
 
-        thrst = ptst_critical_enter();
+        thrst = ThreadStateManager.thrst_critical_enter();
 
         above_next = above_head;
         above_prev = above_next;
@@ -325,7 +322,7 @@ public class SkiplistRotating {
             node = next;
             next = next.next;
         }
-        ptst_critical_exit(thrst);
+        ThreadStateManager.thrst_critical_exit(thrst);
         return raised;
     }
 	
@@ -338,7 +335,7 @@ public class SkiplistRotating {
         Node node = set.head;
         Node node_next = node;
 
-        thrst = ptst_critical_enter();
+        thrst = ThreadStateManager.thrst_critical_enter();
 
         if (node.level-2 <= sl_zero)
         	return; /* no more room to lower */
@@ -366,7 +363,7 @@ public class SkiplistRotating {
         /* BARRIER(); *//* do all of the above first */
         ++sl_zero;
 
-        ptst_critical_exit(thrst);
+        ThreadStateManager.thrst_critical_exit(thrst);
 	}
 	
 	/**
@@ -383,7 +380,7 @@ public class SkiplistRotating {
         Node index, inext, iprev = set.head;
         Node above_next, above_prev, above_head;
 
-        thrst = ptst_critical_enter();
+        thrst = ThreadStateManager.thrst_critical_enter();
 
         above_next = above_prev = above_head = set.head;
 
@@ -435,7 +432,7 @@ public class SkiplistRotating {
             iprev = index;
             index = index.succs[(int) idx(h-1,zero)];
         }
-        ptst_critical_exit(thrst);
+        ThreadStateManager.thrst_critical_exit(thrst);
         
         return raised;
 	}
@@ -717,13 +714,14 @@ public class SkiplistRotating {
 	 *  and kick-started as part of this routine.
 	 */
 	private SlSet newSet(int start) {
-		SlSet set;
+		SlSet set = null;
 		ThreadState thrst;
 		
 		thrst = ThreadStateManager.thrst_critical_enter();
 		SkiplistRotating.sl_zero = 0; /* zero index initially set to 0 */
 		
 		/* alloc mem for set in c */
+		set = new SlSet();
 		set.head = newNode(0, null, null, null, 1, thrst);
 		
 		bg_init(set);
@@ -990,7 +988,7 @@ public class SkiplistRotating {
 	    
 	    assert(null != set);
 	    
-	    thrst = ptst_critical_enter();
+	    thrst = ThreadStateManager.thrst_critical_enter();
 
 	    zero = sl_zero;
 	    i = set.head.level - 1;
@@ -1045,7 +1043,7 @@ public class SkiplistRotating {
         	}
         	node = next;
         }
-        ptst_critical_exit(thrst);
+        ThreadStateManager.thrst_critical_exit(thrst);
         return result;
     }
              
