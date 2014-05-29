@@ -54,5 +54,6 @@ public class SkiplistTest {
             int ret = sl.contains(i);
             System.out.println(ret);
         }
+        System.out.println("Finish!");
 	}
 }

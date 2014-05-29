@@ -34,9 +34,9 @@ public class SkiplistRotating {
 		volatile Node next;
 		long key;
 		volatile Object value;
-		
+
 		// MAX_LVLS successors;
-		volatile Node[] succs; //?? volatile?
+		volatile Node[] succs = new Node[(int)MAX_LVLS]; //?? volatile?
 		long marker;
 		long raise_or_remove;
 		
