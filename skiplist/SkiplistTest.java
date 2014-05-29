@@ -6,34 +6,34 @@ import java.util.NavigableSet;
 import util.MyConcurrentSkipListMap;
 import util.SkiplistRotating;
 import java.lang.Thread;
+import java.util.Random;
 //import java.util.concurrent.ConcurrentSkipListMap;
 
 public class SkiplistTest extends Thread {
 
     int x;
+    int operations;
 
-    public SkiplistTest(int x) {
+    public SkiplistTest(int x, int operations) {
         super();
         this.x = x;
+        this.operations = operations;
     }
 	
 	public void run() {
         System.out.println("Start thread " + currentThread().getId());
         System.out.println(" " + x);
+        Random r = new Random();
         SkiplistRotating sl = new SkiplistRotating();
-        sl.insert(3 + x, "A");
-        sl.insert(2 + x, "B");
-        sl.insert(1 + x, "C");
-        sl.insert(5 + x, "D");
-        sl.insert(4 + x, "E");
-
-        for (int i = 1; i < 6; i++)  {
-            int idx = i + x + 2;
-            int ret = sl.contains(idx);
-            System.out.println("test if contains" + idx);
-            if (i < 4) assert (ret == 1);
-            else assert(ret == 0);
+        for (int i = operations * x; i < operations * (x + 1); i++)
+            sl.insert(i, r.nextInt(100));
+        for (int i = operations * x; i < operations * (x + 1); i++) {
+            int ret = sl.contains(i);
+            if (ret != 1) {
+                throw new RuntimeException();
+            }
         }
+
         System.out.println("Finish on " + currentThread().getId());
 	}
 }

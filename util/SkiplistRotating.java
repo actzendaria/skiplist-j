@@ -3,6 +3,7 @@ package util;
 import java.lang.reflect.Field;
 import java.util.Random;
 import java.lang.Thread;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import sun.misc.Unsafe;
 
@@ -36,7 +37,7 @@ public class SkiplistRotating {
 		volatile Object value;
 
 		// MAX_LVLS successors;
-		volatile Node[] succs = new Node[(int)MAX_LVLS]; //?? volatile?
+		volatile AtomicReferenceArray<Node> succs = new AtomicReferenceArray<Node>(new Node[(int)MAX_LVLS]); //?? volatile?
 		long marker;
 		long raise_or_remove;
 		
@@ -170,7 +171,7 @@ public class SkiplistRotating {
             	// add a new index level
 
             	// nullify BEFORE we increase the level
-            	head.succs[(int) idx(head.level, zero)] = null;
+            	head.succs.set((int) idx(head.level, zero), null);
             	
             	/* BARRIER(); ZZZ: I've markedl evel and succs volatile..*/
             	
@@ -192,7 +193,7 @@ public class SkiplistRotating {
             		// add a new index level
             		
             		// nullify BEFORE we increase the level
-            		head.succs[(int) idx(head.level,zero)] = null;
+            		head.succs.set((int) idx(head.level,zero), null);
             		
             		/* BARRIER(); ZZZ */
             		head.level++;
@@ -280,18 +281,18 @@ public class SkiplistRotating {
             		raised = 1;
 
                     while((above_next != null) && (above_next.key < node.key)) {
-                        above_next = above_next.succs[(int) idx(0,zero)];
-                        if (above_next != above_head.succs[(int) idx(0,zero)]) {
-                            above_prev = above_prev.succs[(int) idx(0,zero)];
+                        above_next = above_next.succs.get((int) idx(0,zero));
+                        if (above_next != above_head.succs.get((int) idx(0,zero))) {
+                            above_prev = above_prev.succs.get((int) idx(0,zero));
                         }
                     }
 
             		// swap the pointers
-            		node.succs[(int) idx(0,zero)] = above_next;
+            		node.succs.set((int) idx(0,zero), above_next);
 
             		/* BARRIER(); // make sure above happens first ZZZ */
 
-            		above_prev.succs[(int) idx(0,zero)] = node;
+            		above_prev.succs.set((int) idx(0,zero), node);
             		above_head = node;
             		above_prev = above_head; 
             		above_next = above_prev; 
@@ -324,7 +325,7 @@ public class SkiplistRotating {
         /* decrement the level of all nodes */
         
         while (node != null) {
-        	node_next = node.succs[(int) idx(0,zero)];
+        	node_next = node.succs.get((int) idx(0,zero));
         	if (node.marker == 0) {
         		if (node.level > 0) {
         			if (1 == node.level && node.raise_or_remove != 0) {
@@ -332,7 +333,7 @@ public class SkiplistRotating {
         			}
         			
         			/* null out the ptr for level being removed */
-        			node.succs[(int) idx(0,zero)] = null;
+        			node.succs.set((int) idx(0,zero), null);
         			node.level--;
         		}
             }
@@ -361,14 +362,14 @@ public class SkiplistRotating {
 
         above_next = above_prev = above_head = set.head;
 
-        index = iprev.succs[(int) idx(h-1,zero)];
+        index = iprev.succs.get((int) idx(h-1,zero));
         if (null == index)
         	return raised;
 
-        while (null != (inext = index.succs[(int) idx(h-1,zero)])) {
+        while (null != (inext = index.succs.get((int) idx(h-1,zero)))) {
         	while (index.value == index) {
         		// skip deleted nodes
-        		iprev.succs[(int) idx(h-1,zero)] = inext;
+        		iprev.succs.set((int) idx(h-1,zero), inext);
                     
         		/*ZZZ*/
         		/*BARRIER();*/ // do removal before level decrementing
@@ -378,7 +379,7 @@ public class SkiplistRotating {
         			break;
         		}
         		index = inext;
-        		inext = inext.succs[(int) idx(h-1,zero)];
+        		inext = inext.succs.get((int) idx(h-1,zero));
             }
             if (null == inext) {
             	break;
@@ -389,19 +390,19 @@ public class SkiplistRotating {
                 	
             	/* find the correct index node above */
                 while((above_next != null) && (above_next.key < index.key)) {
-                    above_next = above_next.succs[(int) idx(h,zero)];
-                    if (above_next != above_head.succs[(int) idx(h,zero)]) {
-                        above_prev = above_prev.succs[(int) idx(h,zero)];
+                    above_next = above_next.succs.get((int) idx(h,zero));
+                    if (above_next != above_head.succs.get((int) idx(h,zero))) {
+                        above_prev = above_prev.succs.get((int) idx(h,zero));
                     }
                 }
                     
             	/* fix the pointers and levels */
-            	index.succs[(int) idx(h,zero)] = above_next;
+            	index.succs.set((int) idx(h,zero), above_next);
                     
                 /*ZZZ*/
                 /* BARRIER(); */ /* link index to above_next first */
             	
-                above_prev.succs[(int) idx(h,zero)] = index;
+                above_prev.succs.set((int) idx(h,zero), index);
                 index.level++;
                     
                 assert(index.level == h+1);
@@ -411,7 +412,7 @@ public class SkiplistRotating {
                 above_next = above_prev;
             }
             iprev = index;
-            index = index.succs[(int) idx(h-1,zero)];
+            index = index.succs.get((int) idx(h-1,zero));
         }
         
         return raised;
@@ -592,7 +593,7 @@ public class SkiplistRotating {
 		node.raise_or_remove = 0;
 		
 		for (int i = 0; i > SkiplistRotating.MAX_LVLS; i++) {
-			node.succs[i] = null;
+			node.succs.set(i, null);
 		}
 		
 		assert(node.next != node);
@@ -618,7 +619,7 @@ public class SkiplistRotating {
 		node.marker = 1;
 		
 		for (int i = 0; i < SkiplistRotating.MAX_LVLS; i++) {
-			node.succs[i] = null;
+			node.succs.set(i, null);
 		}
 		
 		assert(node.next != node);
@@ -695,7 +696,7 @@ public class SkiplistRotating {
         		} else if (flag == 0) {
         			System.out.print(curr.key + " ");
         		}
-        		curr = curr.succs[(int) idx(i, zero)];
+        		curr = curr.succs.get((int) idx(i, zero));
         	}
         	System.out.println("");
         	curr = head;
@@ -757,7 +758,7 @@ public class SkiplistRotating {
 			while (curr != null) {
 				if ((flag != 0) && ((curr.value != curr) && (curr.value != null)) || flag == 0) {
 					count++;
-					curr = curr.succs[(int) idx(i, zero)];
+					curr = curr.succs.get((int) idx(i, zero));
 				}
 			}
 			System.out.println("inodes at level "+(i+1)+" = "+(count));
@@ -928,7 +929,7 @@ public class SkiplistRotating {
 	    /* find an entry-point to the node-level */
 	    item = head;
 	    while (true) {
-	    	next_item = item.succs[(int) idx(i,zero)];
+	    	next_item = item.succs.get((int) idx(i,zero));
 	    	
 	    	if (null == next_item || next_item.key > key) {
 	    		next_item = item;
