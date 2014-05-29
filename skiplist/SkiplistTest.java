@@ -4,12 +4,13 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableSet;
 import util.MyConcurrentSkipListMap;
+import util.SkiplistRotating;
 //import java.util.concurrent.ConcurrentSkipListMap;
 
 public class SkiplistTest {
 	
 	public static void main(String... args){
- 
+
 		MyConcurrentSkipListMap<String, String> ob= new MyConcurrentSkipListMap<String, String>();
 		ob.put("3","A");
 		ob.put("2","B");
@@ -40,5 +41,18 @@ public class SkiplistTest {
 		 
 		 //returns the greatest entry and also removes from the map
 		 System.out.println("value removed from the map:"+ob.pollLastEntry());
-		}
+
+
+        SkiplistRotating sl = new SkiplistRotating();
+        sl.insert(3, "A");
+        sl.insert(2, "B");
+        sl.insert(1, "C");
+        sl.insert(5, "D");
+        sl.insert(4, "E");
+
+        for (int i = 1; i < 6; i++)  {
+            int ret = sl.contains(i);
+            System.out.println(ret);
+        }
+	}
 }

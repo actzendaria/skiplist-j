@@ -5,8 +5,6 @@ import java.util.Random;
 import java.lang.Thread;
 
 import sun.misc.Unsafe;
-import util.ThreadState;
-import util.ThreadStateManager;
 
 public class SkiplistRotating {
 
@@ -97,8 +95,13 @@ public class SkiplistRotating {
 	        return ret;
 	    }	
 	}
+
+    public SkiplistRotating() {
+        if (null == set)
+            set = newSet(1);
+    }
 	
-	public enum SlOptype{  
+	private enum SlOptype{
 	    CONTAINS, DELETE, INSERT  
 	} 
 	
@@ -110,7 +113,7 @@ public class SkiplistRotating {
 	/* background global variables */
 	/* ZZZ review here, instantiate as Object ? */
 	/* global maintained variables */
-	static SlSet set;
+	static SlSet set = null;
 	static Thread bg_thread;
 	/* to keep track of background state */
 	/*VOLATILE*/ volatile static int bg_finished;
@@ -122,8 +125,6 @@ public class SkiplistRotating {
 	static int bg_tall_deleted;
 
 	static int bg_sleep_time;
-	static int bg_counter;
-	static int bg_go;
 
 	volatile static int bg_should_delete; /* Updated in bg_loop() detection */
 	
@@ -134,28 +135,12 @@ public class SkiplistRotating {
 		int raised = 0; /* keep track of if we raised index level */
 		int threshold;  /* for testing if we should lower index level */
 		long i;
-		ThreadState thrst = null;
 		long zero;
 
 		assert(null != set);
-		/* ZZZ check if condition in sync block is correct */
-		synchronized(SkiplistRotating.class){
-			bg_counter = 0;
-			bg_go = 0;
-			bg_should_delete = 1;
-		}
-		
-		/* BARRIER(); */
-
-		/*
-		#ifdef BG_STATS
-		bg_stats.raises = 0;
-		bg_stats.loops = 0;
-		bg_stats.lowers = 0;
-		bg_stats.delete_attempts = 0;
-		bg_stats.delete_succeeds = 0;
-		#endif
-		 */
+		/* ZZZ: check if condition in sync block is correct */
+        /* LY: bg_counter and bg_go seem to be unnecessary */
+		bg_should_delete = 1;
 		
 		while (true) {
 			/* bg_sleep_time in us, e.g. usleep(bg_sleep_time) */
@@ -173,16 +158,13 @@ public class SkiplistRotating {
 			}
 			
 			zero = sl_zero;
-			
-			/* #ifdef BG_STATS
-			 * ++(bg_stats.loops)
-			 */
+
 			bg_non_deleted = 0;
 			bg_deleted = 0;
 			bg_tall_deleted = 0;
 			
 			/* traverse the node level and try deletes/raises */
-            raised = bg_trav_nodes(thrst);
+            raised = bg_trav_nodes();
 
             if ((raised != 0) && (1 == head.level)) {
             	// add a new index level
@@ -203,7 +185,7 @@ public class SkiplistRotating {
             /* raise the index level nodes */
             for (i = 0; (i+1) < set.head.level; i++) {
             	assert(i < MAX_LVLS);
-            	raised = bg_raise_ilevel((int) (i+1), thrst);
+            	raised = bg_raise_ilevel((int) (i+1));
 
             	if ((((i+1) == (head.level-1)) && (raised != 0))
             			&& head.level < MAX_LVLS) {
@@ -227,7 +209,7 @@ public class SkiplistRotating {
             threshold = bg_non_deleted * 10;
             if (bg_tall_deleted > threshold) {
             	if (head.level > 1) {
-            		bg_lower_ilevel(thrst);
+            		bg_lower_ilevel();
             		/*
             		 * #ifdef BG_STATS
             		 * ++(bg_stats.lowers);
@@ -261,7 +243,7 @@ public class SkiplistRotating {
 	 * Note: this tries to raise non-deleted nodes, and finished deletions that
 	 * have been started but not completed.
 	 */
-	static int bg_trav_nodes(ThreadState thrst) {
+	static int bg_trav_nodes() {
 		/* ZZZ: I need to initialize Node with a specific type here? Object? */
 		Node prev, node, next;
         Node above_head = set.head, above_prev, above_next;
@@ -269,8 +251,6 @@ public class SkiplistRotating {
         int raised = 0;
 
         assert(null != set && null != set.head);
-
-        thrst = ThreadStateManager.thrst_critical_enter();
 
         above_next = above_head;
         above_prev = above_next;
@@ -283,7 +263,7 @@ public class SkiplistRotating {
         
         while (null != next) {
         	if (null == node.value) {
-        		bg_remove(prev, node, thrst);
+        		bg_remove(prev, node);
         		if (node.level >= 1) {
         			bg_tall_deleted++;
         		}
@@ -322,7 +302,7 @@ public class SkiplistRotating {
             node = next;
             next = next.next;
         }
-        ThreadStateManager.thrst_critical_exit(thrst);
+
         return raised;
     }
 	
@@ -330,12 +310,10 @@ public class SkiplistRotating {
 	 * bg_lower_ilevel - lower the index level
 	 */
 
-	static void bg_lower_ilevel(ThreadState thrst) {
+	static void bg_lower_ilevel() {
 		long zero = sl_zero;
         Node node = set.head;
         Node node_next = node;
-
-        thrst = ThreadStateManager.thrst_critical_enter();
 
         if (node.level-2 <= sl_zero)
         	return; /* no more room to lower */
@@ -362,8 +340,6 @@ public class SkiplistRotating {
         /* ZZZ */
         /* BARRIER(); *//* do all of the above first */
         ++sl_zero;
-
-        ThreadStateManager.thrst_critical_exit(thrst);
 	}
 	
 	/**
@@ -374,13 +350,11 @@ public class SkiplistRotating {
 	 * Returns 1 if a node was raised and 0 otherwise.
 	 */
 
-	static int bg_raise_ilevel(int h, ThreadState thrst) {
+	static int bg_raise_ilevel(int h) {
 		int raised = 0;
         long zero = sl_zero;
         Node index, inext, iprev = set.head;
         Node above_next, above_prev, above_head;
-
-        thrst = ThreadStateManager.thrst_critical_enter();
 
         above_next = above_prev = above_head = set.head;
 
@@ -432,7 +406,6 @@ public class SkiplistRotating {
             iprev = index;
             index = index.succs[(int) idx(h-1,zero)];
         }
-        ThreadStateManager.thrst_critical_exit(thrst);
         
         return raised;
 	}
@@ -473,14 +446,6 @@ public class SkiplistRotating {
 		set = (SlSet) s;
 		bg_finished = 0;
 		bg_running = 0;
-
-		 /* BG_STATS 
-	        bg_stats.loops = 0;
-	        bg_stats.raises = 0;
-	        bg_stats.lowers = 0;
-	        bg_stats.delete_attempts = 0;
-	        bg_stats.delete_succeeds = 0;
-	      */
 	}
 	
 	/**
@@ -513,10 +478,6 @@ public class SkiplistRotating {
 		/* XXX not thread safe XXX */
 		if (bg_running != 0) {
 			bg_finished = 1;
-			/*
-             * pthread_join(bg_thread, NULL);
-             * BARRIER();
-             */
 			try {
 				bg_thread.join();
 			} catch (InterruptedException e) {
@@ -546,7 +507,12 @@ public class SkiplistRotating {
 	     */
 	}
 	
-	static void bg_remove(Node prev, Node node, ThreadState thrst) {
+	static void bg_remove(Node prev, Node node) {
+        if (0 == node.level) {
+            node.casValue(null, node);
+            if (node.value == node)
+                bg_help_remove(prev, node);
+        }
 	}
 	
 	/**
@@ -562,7 +528,7 @@ public class SkiplistRotating {
 	 * between @prev and @node, physically remove @node and the marker
 	 * by pointing @prev past these nodes.
 	 */
-	void bg_help_remove(Node prev, Node node, ThreadState thrst) {
+	static void bg_help_remove(Node prev, Node node) {
 		Node n, n_new, prev_next;
         boolean retval;
 
@@ -575,18 +541,12 @@ public class SkiplistRotating {
 
         n = node.next;
         while (null == n || n.marker == 0) {
-        	n_new = newMarker(node, n, thrst);
+        	n_new = newMarker(node, n);
         	/*CAS(&node->next, n, new);*/
         	node.casNext(n, n_new);
             assert (node.next != node);
             n = node.next;
         }
-
-        /*
-          #ifdef BG_STATS
-          ADD_TO(bg_stats.delete_attempts, 1);
-          #endif
-         */
 
         if (prev.next != node || prev.marker != 0) {
         	return;
@@ -602,8 +562,8 @@ public class SkiplistRotating {
         assert (prev.next != prev);
 
         if (retval) {
-        	delNode(node, thrst);
-        	delMarker(n, thrst);
+        	delNode(node);
+        	delMarker(n);
         	/*
         	 * #ifdef BG_STATS
         	 * ADD_TO(bg_stats.delete_succeeds, 1);
@@ -631,14 +591,13 @@ public class SkiplistRotating {
 	 * @param prev the prev node pointer for the new node
 	 * @param next the next node pointer for the new node
 	 * @param level the level for the new node
-	 * @param thrst the per-thread state
 	 * @return
 	 * 
 	 * Nodes are originally created with marker set to 0 (unmarked)
 	 */
 	@SuppressWarnings("unused")
 	private static Node newNode(long key, Object value, Node prev, Node next,
-							   long level, ThreadState thrst) {
+							   long level) {
 		Node node = new Node();
 		
 		node.key = key;
@@ -663,10 +622,9 @@ public class SkiplistRotating {
 	 * create a new marker node
 	 * @param prev
 	 * @param next
-	 * @param thrst
 	 * @return
 	 */
-	private static Node newMarker(Node prev, Node next, ThreadState thrst) {
+	private static Node newMarker(Node prev, Node next) {
 		Node node = new Node();
 		
 		node.key = 0;
@@ -689,17 +647,16 @@ public class SkiplistRotating {
 	/**
 	 * delete a bottom-level node
 	 * @param node
-	 * @param thrst
 	 * 
 	 * Depends on garbage collection
 	 *   gc_free(ptst, (void*)node, gc_id[curr_id]); // original
 	 */
-	private static void delNode(Node node, ThreadState thrst) {
+	private static void delNode(Node node) {
 		/* ZZZ seems nothing to be done here... */
 	};
 	
 	/* marker_delete */
-	private static void delMarker(Node node, ThreadState thrst) {
+	private static void delMarker(Node node) {
 		/* ZZZ seems nothing to be done here... */
 	}
 	
@@ -715,22 +672,18 @@ public class SkiplistRotating {
 	 */
 	private SlSet newSet(int start) {
 		SlSet set = null;
-		ThreadState thrst;
-		
-		thrst = ThreadStateManager.thrst_critical_enter();
+
 		SkiplistRotating.sl_zero = 0; /* zero index initially set to 0 */
 		
 		/* alloc mem for set in c */
 		set = new SlSet();
-		set.head = newNode(0, null, null, null, 1, thrst);
-		
-		bg_init(set);
-		if (start != 0)
-			bg_start(1);
-		
-		ThreadStateManager.thrst_critical_exit(thrst);
-		
-		return set;
+		set.head = newNode(0, null, null, null, 1);
+
+        bg_init(set);
+        if (1 == start)
+            bg_start(1);
+
+        return set;
 	}
 	
 	/* set_delete */
@@ -850,13 +803,12 @@ public class SkiplistRotating {
 	 * @key: the search key
 	 * @node: the left node from sl_do_operation()
 	 * @node_val: @node value
-	 * @ptst: per-thread state
 	 *
 	 * Returns 1 if the search key is present and 0 otherwise.
 	 */
 	static int sl_finish_contains(int key,
 	                              Node node,
-	                              Object node_val, ThreadState thrst)
+	                              Object node_val)
 	{
 		int result = 0;
 		
@@ -877,7 +829,7 @@ public class SkiplistRotating {
 	 * Returns 1 on success or 0 if the search key is not present.
 	 */
 	static int sl_finish_delete(int key, Node node,
-	                            Object node_val, ThreadState thrst)
+	                            Object node_val)
 	{
 		int result = -1;
 		
@@ -901,7 +853,7 @@ public class SkiplistRotating {
 						if (bg_should_delete != 0) {
 							//if (CAS(&node->raise_or_remove, 0, 1)) {
 							if (node.casRor(0, 1)) {
-								bg_remove(node.prev, node, thrst);
+								bg_remove(node.prev, node);
 							}
 						}
 						break;
@@ -935,7 +887,7 @@ public class SkiplistRotating {
 	 *   fails due to concurrency.
 	 */
 	static int sl_finish_insert(int key, Object val, Node node,
-	                            Object node_val, Node next, ThreadState thrst) {
+	                            Object node_val, Node next) {
 		int result = -1;
 		Node n_new, temp;
 
@@ -948,7 +900,7 @@ public class SkiplistRotating {
 					result = 0;
 				}
 			} else {
-				n_new = newNode(key, val, node, next, 0, thrst);
+				n_new = newNode(key, val, node, next, 0);
 				//if (CAS(&node->next, next, new)) {
 				if (node.casNext(next, n_new)) {
 					if (null != next) {
@@ -958,7 +910,7 @@ public class SkiplistRotating {
 					}
 					result = 1;
 				} else {
-					delNode(n_new, thrst);
+					delNode(n_new);
 				}
 	        }
 		return result;
@@ -983,12 +935,9 @@ public class SkiplistRotating {
 		Node head = set.head;
 		Object node_val = null, next_val = null;
 		int result = 0;
-	    ThreadState thrst;
 	    long zero, i;
 	    
 	    assert(null != set);
-	    
-	    thrst = ThreadStateManager.thrst_critical_enter();
 
 	    zero = sl_zero;
 	    i = set.head.level - 1;
@@ -1019,22 +968,22 @@ public class SkiplistRotating {
         	if (null != next) {
         		next_val = next.value;
         		if (next_val == next) {
-        			bg_help_remove(node, next, thrst);
+        			bg_help_remove(node, next);
         			continue;
         		}
         	}
         	if (null == next || next.key > key) {
         		if (SlOptype.CONTAINS == optype) {
         			result = sl_finish_contains(key, node,
-        					node_val, thrst);
+        					node_val);
         		}
         		else if (SlOptype.DELETE == optype) {
         			result = sl_finish_delete(key, node,
-        					node_val, thrst);
+        					node_val);
         		}
         		else if (SlOptype.INSERT == optype) {
         			result = sl_finish_insert(key, val, node,
-        					node_val, next, thrst);
+        					node_val, next);
         		}
         		if (-1 != result) {
         			break;
@@ -1043,8 +992,22 @@ public class SkiplistRotating {
         	}
         	node = next;
         }
-        ThreadStateManager.thrst_critical_exit(thrst);
         return result;
+    }
+
+    public int contains(int key)
+    {
+        return sl_do_operation(set, SlOptype.CONTAINS, key, null);
+    }
+
+    public int delete(int key)
+    {
+        return sl_do_operation(set, SlOptype.DELETE, key, null);
+    }
+
+    public int insert(int key, Object value)
+    {
+        return sl_do_operation(set, SlOptype.INSERT, key, value);
     }
              
 	/*
