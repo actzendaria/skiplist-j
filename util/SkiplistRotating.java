@@ -278,10 +278,13 @@ public class SkiplistRotating {
             		
             		node.level = 1;
             		raised = 1;
-            		
-            		get_index_above(above_head, above_prev,
-            				above_next, 0, node.key,
-            				zero);
+
+                    while((above_next != null) && (above_next.key < node.key)) {
+                        above_next = above_next.succs[(int) idx(0,zero)];
+                        if (above_next != above_head.succs[(int) idx(0,zero)]) {
+                            above_prev = above_prev.succs[(int) idx(0,zero)];
+                        }
+                    }
 
             		// swap the pointers
             		node.succs[(int) idx(0,zero)] = above_next;
@@ -385,8 +388,12 @@ public class SkiplistRotating {
             	raised = 1;
                 	
             	/* find the correct index node above */
-            	get_index_above(above_head, above_prev, above_next,
-            			h, index.key, zero);
+                while((above_next != null) && (above_next.key < index.key)) {
+                    above_next = above_next.succs[(int) idx(h,zero)];
+                    if (above_next != above_head.succs[(int) idx(h,zero)]) {
+                        above_prev = above_prev.succs[(int) idx(h,zero)];
+                    }
+                }
                     
             	/* fix the pointers and levels */
             	index.succs[(int) idx(h,zero)] = above_next;
@@ -408,30 +415,6 @@ public class SkiplistRotating {
         }
         
         return raised;
-	}
-	
-	/* *head, **prev, **next, ZZZ need review here, what does "above" stands for? */
-	static void get_index_above(Node above_head,
-	                            Node above_prev,
-	                            Node above_next,
-	                            long i,
-	                            long key,
-	                            long zero) {
-		/* get the correct index node above */
-		/*
-		 while (*above_next && (*above_next)->key < key) {
-			 *above_next = (*above_next)->succs[IDX(i,zero)];
-             if (*above_next != above_head->succs[IDX(i,zero)])
-                     *above_prev = (*above_prev)->succs[IDX(i,zero)];
-         }
-         */
-		while((above_next != null) && (above_next.key < key)) {
-			above_next = above_next.succs[(int) idx(i,zero)];
-			if (above_next != above_head.succs[(int) idx(i,zero)]) {
-				above_prev = above_prev.succs[(int) idx(i,zero)];
-			}
-		}
-	
 	}
 	
 	/* Background interfaces */
