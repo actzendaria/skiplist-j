@@ -68,30 +68,30 @@ public class SkiplistRotating {
 		
 		boolean casRor(long cmp, long val) {
 			boolean ret;
-			System.out.println("casRor (getLong): " + UNSAFE.getLong(this, raise_or_remove_offset) + " raise_or_remove: " + this.raise_or_remove);
+			//System.out.println("casRor (getLong): " + UNSAFE.getLong(this, raise_or_remove_offset) + " raise_or_remove: " + this.raise_or_remove);
 			ret = UNSAFE.compareAndSwapLong(this, raise_or_remove_offset, cmp, val);
-	        System.out.println("casRor triggered?: " + ret);
+	        //System.out.println("casRor triggered?: " + ret);
 	        return ret;
 	    }
 		
 		boolean casPrev(Node cmp, Node val) {
 			boolean ret;
 			ret = UNSAFE.compareAndSwapObject(this, prev_offset, cmp, val);
-	        System.out.println("casPrev triggered?: " + ret);
+	        //System.out.println("casPrev triggered?: " + ret);
 	        return ret;
 	    }
 		
 		boolean casNext(Node cmp, Node val) {
 			boolean ret;
 			ret = UNSAFE.compareAndSwapObject(this, next_offset, cmp, val);
-	        System.out.println("casNext triggered?: " + ret);
+	        //System.out.println("casNext triggered?: " + ret);
 	        return ret;
 	    }
 		
 		boolean casValue(Object cmp, Object val) {
 			boolean ret;
 			ret = UNSAFE.compareAndSwapObject(this, value_offset, cmp, val);
-	        System.out.println("casValue triggered?: " + ret);
+	        //System.out.println("casValue triggered?: " + ret);
 	        return ret;
 	    }	
 	}
